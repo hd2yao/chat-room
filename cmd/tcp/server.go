@@ -43,7 +43,7 @@ func (u *User) String() string {
 
 // Message 给用户发送消息
 type Message struct {
-    Owner   int
+    OwnerID int
     Content string
 }
 
@@ -59,6 +59,28 @@ var (
 // broadcaster 用于记录聊天室用户，并进行信息广播
 // 1.新用户进来； 2.用户普通信息； 3.用户离开
 func broadcaster() {
+    users := make(map[*User]struct{})
+
+    for {
+        select {
+        case user := <-enteringChannel:
+            // 新用户进入
+            users[user] = struct{}{}
+        case user := <-leavingChannel:
+            // 用户离开
+            delete(users, user)
+            // 避免 goroutine 泄露
+            close(user.MessageChannel)
+        case msg := <-messageChannel:
+            // 给所有在线用户发送消息
+            for user := range users {
+                if user.ID == msg.OwnerID {
+                    continue
+                }
+                user.MessageChannel <- msg.Content
+            }
+        }
+    }
 }
 
 func handleConn(conn net.Conn) {
@@ -79,7 +101,7 @@ func handleConn(conn net.Conn) {
     // 3. 给当前用户发送欢迎信息，给所有用户告知新用户到来
     user.MessageChannel <- "Welcome, " + user.String()
     msg := Message{
-        Owner:   user.ID,
+        OwnerID: user.ID,
         Content: "user:`" + strconv.Itoa(user.ID) + "` has enter",
     }
     messageChannel <- msg
