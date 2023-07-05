@@ -5,8 +5,8 @@ import (
     "log"
     "net/http"
 
+    "github.com/hd2yao/chat-room/global"
     "github.com/hd2yao/chat-room/server"
-    "github.com/polaris1119/golangclub/global"
 )
 
 var (
