@@ -1,5 +1,20 @@
 package logic
 
+import (
+    "expvar"
+    "fmt"
+    "github.com/hd2yao/chat-room/global"
+)
+
+func init() {
+    expvar.Publish("message_queue", expvar.Func(calcMessageQueueLen))
+}
+
+func calcMessageQueueLen() interface{} {
+    fmt.Println("===len=", len(Broadcaster.messageChannel))
+    return len(Broadcaster.messageChannel)
+}
+
 // broadcaster 广播器
 type broadcaster struct {
     // 所有聊天室用户
@@ -25,5 +40,11 @@ var Broadcaster = &broadcaster{
 
     enteringChannel: make(chan *User),
     leavingChannel:  make(chan *User),
-    messageChannel:  make(chan *User),
+    messageChannel:  make(chan *User, global.MessageQueueLen),
+
+    checkUserChannel:      make(chan string),
+    checkUserCanInChannel: make(chan bool),
+
+    requestUserChannel: make(chan struct{}),
+    usersChannel:       make(chan []*User),
 }
