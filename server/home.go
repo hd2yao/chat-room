@@ -3,10 +3,11 @@ package server
 import (
     "encoding/json"
     "fmt"
-    "github.com/hd2yao/chat-room/global"
-    "github.com/hd2yao/chat-room/logic"
     "html/template"
     "net/http"
+
+    "github.com/hd2yao/chat-room/global"
+    "github.com/hd2yao/chat-room/logic"
 )
 
 func homeHandleFunc(w http.ResponseWriter, req *http.Request) {
