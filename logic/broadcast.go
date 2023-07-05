@@ -3,6 +3,7 @@ package logic
 import (
     "expvar"
     "fmt"
+    "log"
 
     "github.com/hd2yao/chat-room/global"
 )
@@ -25,7 +26,7 @@ type broadcaster struct {
 
     enteringChannel chan *User
     leavingChannel  chan *User
-    messageChannel  chan *User
+    messageChannel  chan *Message
 
     // 判断该昵称用户是否可以进入聊天室（重复与否）：true 能，false 不能
     checkUserChannel      chan string
@@ -41,7 +42,7 @@ var Broadcaster = &broadcaster{
 
     enteringChannel: make(chan *User),
     leavingChannel:  make(chan *User),
-    messageChannel:  make(chan *User, global.MessageQueueLen),
+    messageChannel:  make(chan *Message, global.MessageQueueLen),
 
     checkUserChannel:      make(chan string),
     checkUserCanInChannel: make(chan bool),
@@ -58,6 +59,61 @@ func (b *broadcaster) Start() {
         case user := <-b.enteringChannel:
             // 新用户进入
             b.users[user.NickName] = user
+
+            OfflineProcessor.Send(user)
+        case user := <-b.leavingChannel:
+            // 用户离开
+            delete(b.users, user.NickName)
+            // 避免 goroutine 泄露
+            user.CloseMessageChannel()
+        case msg := <-b.messageChannel:
+            // 给所有在线用户发送消息
+            for _, user := range b.users {
+                if user.UID == msg.User.UID {
+                    continue
+                }
+                user.MessageChannel <- msg
+            }
+            OfflineProcessor.Save(msg)
+        case nickname := <-b.checkUserChannel:
+            if _, ok := b.users[nickname]; ok {
+                b.checkUserCanInChannel <- false
+            } else {
+                b.checkUserCanInChannel <- true
+            }
+        case <-b.requestUserChannel:
+            userList := make([]*User, 0, len(b.users))
+            for _, user := range b.users {
+                userList = append(userList, user)
+            }
+
+            b.usersChannel <- userList
         }
     }
+}
+
+func (b *broadcaster) UserEntering(u *User) {
+    b.enteringChannel <- u
+}
+
+func (b *broadcaster) UserLeaving(u *User) {
+    b.leavingChannel <- u
+}
+
+func (b *broadcaster) Broadcast(msg *Message) {
+    if len(b.messageChannel) >= global.MessageQueueLen {
+        log.Println("broadcast queue 满了")
+    }
+    b.messageChannel <- msg
+}
+
+func (b *broadcaster) CanEnterRoom(nickname string) bool {
+    b.checkUserChannel <- nickname
+
+    return <-b.checkUserCanInChannel
+}
+
+func (b *broadcaster) GetUserList() []*User {
+    b.requestUserChannel <- struct{}{}
+    return <-b.usersChannel
 }
