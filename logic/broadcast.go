@@ -48,3 +48,15 @@ var Broadcaster = &broadcaster{
     requestUserChannel: make(chan struct{}),
     usersChannel:       make(chan []*User),
 }
+
+// Start 启动广播器
+// 需要在一个新的 goroutine 中运行，因为它不会返回
+func (b *broadcaster) Start() {
+    for {
+        select {
+        case user := <-b.enteringChannel:
+            // 新用户进入
+            b.users[user.NickName] = user
+        }
+    }
+}
